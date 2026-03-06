@@ -1,4 +1,9 @@
-<img width="1479" height="971" alt="screenshot" src="https://github.com/user-attachments/assets/8d2ce891-a961-42f6-91cb-7b938c67005f" />
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=EMFjIwDLaIY">
+    <img src="https://github.com/user-attachments/assets/fb07f88c-e412-4ed8-8697-3f06e4a8b8f2" alt="Watch the video" width="800" />
+  </a>
+</p>
+
 
 # Discord Drive
 Semantically search for vectorized images across your Discord server. (TLDR: Find images with words)
@@ -30,5 +35,6 @@ Semantically search for vectorized images across your Discord server. (TLDR: Fin
 
 ### Usage
 Use this at your own risk. Run this locally, shipping this feature without proper planning and understanding (vibe shipping), could be considered a security breach of you and your server members information as it would be publically accessible.
+
 
 
