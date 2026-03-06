@@ -17,35 +17,7 @@ Semantically search for vectorized images across your Discord server. (TLDR: Fin
 - `docker-compose.yml` – local dev stack
 
 ### Run locally 
-1. Create three `.env` files (sorry this is annoying, but it's just this way for this pushed version and not for the current version):
-- bot/.env
-  ```.env
-  DISCORD_TOKEN=your_discord_bot_token
-  DISCORD_APPLICATION_ID=your_discord_application_id
-  BACKEND_URL=http://backend:8000
-  BACKEND_API_KEY=changeme
-  ```
-- backend/.env
-  ```.env
-  API_KEY=changeme
-  QDRANT_URL=http://qdrant:6333
-  QDRANT_COLLECTION=latent_assets
-  THUMB_DIR=/app/thumbs
-  IMAGE_DIR=/app/images
-  STORE_FULL_IMAGES=false
-  EMBED_MODEL=ViT-B-32
-  EMBED_PRETRAINED=openai
-  EMBED_DIM=512
-  # optional: 
-  THUMB_SIZE=256,256
-  ```
-- frontend/.env
-  ```.env
-  VITE_API_URL=http://localhost:8000
-  VITE_API_KEY=changeme
-  ```
-
-   
+1. create .env files (auto setup for self-usage soon)   
 2. Start everything:
    ```bash
    docker compose up --build
@@ -58,4 +30,5 @@ Semantically search for vectorized images across your Discord server. (TLDR: Fin
 
 ### Usage
 Use this at your own risk. Run this locally, shipping this feature without proper planning and understanding (vibe shipping), could be considered a security breach of you and your server members information as it would be publically accessible.
+
 
