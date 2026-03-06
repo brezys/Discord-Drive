@@ -1,0 +1,40 @@
+from contextlib import asynccontextmanager
+
+from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.middleware import verify_api_key
+from app.routers import admin, assets, ingest, query, thumbnails
+from app.services import vector_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    vector_db.ensure_collection()
+    yield
+
+
+app = FastAPI(
+    title="Latent Assets API",
+    version="1.0.0",
+    lifespan=lifespan,
+    dependencies=[Depends(verify_api_key)],
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(ingest.router)
+app.include_router(query.router)
+app.include_router(thumbnails.router)
+app.include_router(admin.router)
+app.include_router(assets.router)
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
