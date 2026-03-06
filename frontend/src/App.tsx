@@ -2,7 +2,14 @@ import { FormEvent, useState, useCallback } from "react";
 import { searchImages, thumbUrl, AssetResult } from "./api";
 import AssetDetailModal from "./components/AssetDetailModal";
 
-const TOP_K_OPTIONS = [5, 10, 20, 50, 100, 200, 500, 1000];
+const TOP_K_STEPS = [1, 5, 10, 20, 100] as const;
+type TopKOption = number | "ALL";
+
+function buildTopKOptions(totalAvailable: number | null): TopKOption[] {
+  if (totalAvailable === null) return [...TOP_K_STEPS, "ALL"];
+  if (totalAvailable <= 0) return [1];
+  return [...TOP_K_STEPS.filter((step) => step <= totalAvailable), "ALL"];
+}
 
 function SkeletonGrid({ count }: { count: number }) {
   return (
@@ -51,7 +58,10 @@ function ResultCard({
         />
       )}
       <div className="card-info">
-        <div className="card-score">{score}% match</div>
+        <div className="card-score">
+          {result.tag_match && <span className="card-tag-badge">tag</span>}
+          {score}% match
+        </div>
         <div className="card-filename">{result.metadata.filename}</div>
       </div>
     </div>
@@ -60,8 +70,9 @@ function ResultCard({
 
 export default function App() {
   const [query, setQuery] = useState("");
-  const [topK, setTopK] = useState(10);
+  const [topK, setTopK] = useState<TopKOption>(10);
   const [results, setResults] = useState<AssetResult[] | null>(null);
+  const [totalAvailable, setTotalAvailable] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastQuery, setLastQuery] = useState("");
@@ -77,12 +88,19 @@ export default function App() {
       setError(null);
 
       try {
-        const data = await searchImages(trimmed, topK);
-        setResults(data);
+        const requestedTopK = topK === "ALL" ? null : topK;
+        const data = await searchImages(trimmed, requestedTopK);
+        const availableOptions = buildTopKOptions(data.total_available);
+        if (!availableOptions.includes(topK)) {
+          setTopK(availableOptions[availableOptions.length - 1]);
+        }
+        setResults(data.results);
+        setTotalAvailable(data.total_available);
         setLastQuery(trimmed);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Search failed");
         setResults(null);
+        setTotalAvailable(null);
       } finally {
         setLoading(false);
       }
@@ -90,6 +108,9 @@ export default function App() {
     [query, topK]
   );
 
+  const topKOptions = buildTopKOptions(totalAvailable);
+  const selectValue = String(topK);
+  const loadingCount = topK === "ALL" ? 20 : topK;
   const hasResults = results !== null && results.length > 0;
   const noResults = results !== null && results.length === 0;
 
@@ -118,10 +139,16 @@ export default function App() {
       <div className="controls">
         <label>
           Results:
-          <select value={topK} onChange={(e) => setTopK(Number(e.target.value))}>
-            {TOP_K_OPTIONS.map((n) => (
-              <option key={n} value={n}>
-                {n}
+          <select
+            value={selectValue}
+            onChange={(e) => {
+              const value = e.target.value;
+              setTopK(value === "ALL" ? "ALL" : Number(value));
+            }}
+          >
+            {topKOptions.map((option) => (
+              <option key={String(option)} value={String(option)}>
+                {option}
               </option>
             ))}
           </select>
@@ -129,14 +156,16 @@ export default function App() {
 
         {hasResults && (
           <span className="result-count">
-            {results.length} result{results.length !== 1 ? "s" : ""} for &ldquo;{lastQuery}&rdquo;
+            {results.length}
+            {totalAvailable !== null ? ` of ${totalAvailable}` : ""} result
+            {results.length !== 1 ? "s" : ""} for &ldquo;{lastQuery}&rdquo;
           </span>
         )}
       </div>
 
       {error && <div className="error-banner">{error}</div>}
 
-      {loading && <SkeletonGrid count={topK} />}
+      {loading && <SkeletonGrid count={loadingCount} />}
 
       {!loading && hasResults && (
         <div className="grid">

@@ -1,18 +1,26 @@
 """Qdrant vector database operations."""
 from __future__ import annotations
 
-import uuid
+import logging
 from typing import Any
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
-from qdrant_client.http.models import Distance, VectorParams
+from qdrant_client.http.models import Distance, PayloadSchemaType, VectorParams
 
 from app.config import settings
 
+logger = logging.getLogger(__name__)
+
+# Singleton client — reuse connection across requests
+_qdrant_client: QdrantClient | None = None
+
 
 def _client() -> QdrantClient:
-    return QdrantClient(url=settings.qdrant_url)
+    global _qdrant_client
+    if _qdrant_client is None:
+        _qdrant_client = QdrantClient(url=settings.qdrant_url)
+    return _qdrant_client
 
 
 def ensure_collection() -> None:
@@ -26,6 +34,77 @@ def ensure_collection() -> None:
                 distance=Distance.COSINE,
             ),
         )
+        logger.info("[qdrant] Created collection '%s'", settings.qdrant_collection)
+
+
+def ensure_tags_index() -> None:
+    """Create a KEYWORD payload index on 'tags' for fast filtered search.
+
+    Idempotent — safe to call on every startup.
+    """
+    client = _client()
+    try:
+        client.create_payload_index(
+            collection_name=settings.qdrant_collection,
+            field_name="tags",
+            field_schema=PayloadSchemaType.KEYWORD,
+        )
+        logger.info("[qdrant] Keyword index on 'tags' created/verified")
+    except Exception:
+        # Already exists or collection doesn't exist yet — both are fine
+        pass
+
+
+def warmup() -> None:
+    """Touch Qdrant to warm the HTTP connection pool and OS page cache."""
+    client = _client()
+    try:
+        info = client.get_collection(settings.qdrant_collection)
+        if info.points_count and info.points_count > 0:
+            client.scroll(
+                collection_name=settings.qdrant_collection,
+                limit=1,
+                with_payload=False,
+                with_vectors=False,
+            )
+            logger.info("[qdrant] Warmup scroll completed")
+        else:
+            logger.info("[qdrant] Collection empty — skipping warmup scroll")
+    except Exception as exc:
+        logger.warning("[qdrant] Warmup skipped: %s", exc)
+
+
+def search_by_tag(
+    tag: str,
+    top_n: int = 20,
+    extra_filters: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Return assets whose 'tags' array contains *tag* (exact, keyword index).
+
+    Uses scroll (no vector needed) — very fast with the KEYWORD index.
+    Score is set to 1.0 to signal an exact tag match.
+    """
+    client = _client()
+    conditions: list[Any] = [
+        qmodels.FieldCondition(key="tags", match=qmodels.MatchValue(value=tag))
+    ]
+    if extra_filters:
+        for k, v in extra_filters.items():
+            if v is not None:
+                conditions.append(
+                    qmodels.FieldCondition(key=k, match=qmodels.MatchValue(value=v))
+                )
+    points, _ = client.scroll(
+        collection_name=settings.qdrant_collection,
+        scroll_filter=qmodels.Filter(must=conditions),
+        limit=top_n,
+        with_payload=True,
+        with_vectors=False,
+    )
+    return [
+        {"asset_id": str(p.id), "score": 1.0, "tag_match": True, **(p.payload or {})}
+        for p in points
+    ]
 
 
 def upsert_asset(
@@ -140,3 +219,23 @@ def asset_exists_by_hash(content_hash: str) -> bool:
         limit=1,
     )
     return len(results[0]) > 0
+
+def count_assets(filters: dict[str, Any] | None = None) -> int:
+    client = _client()
+    qdrant_filter = None
+    conditions: list[Any] = []
+    if filters:
+        conditions = [
+            qmodels.FieldCondition(key=k, match=qmodels.MatchValue(value=v))
+            for k, v in filters.items()
+            if v is not None
+        ]
+    if conditions:
+        qdrant_filter = qmodels.Filter(must=conditions)
+
+    res = client.count(
+        collection_name=settings.qdrant_collection,
+        count_filter=qdrant_filter,
+        exact=True,
+    )
+    return int(res.count)

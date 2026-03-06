@@ -15,9 +15,14 @@ services:
       - "8000:8000"
     env_file:
       - ./backend/.env
+    environment:
+      CLIP_CACHE_DIR: /app/model_cache
+      HF_HOME: /app/model_cache
+      TORCH_HOME: /app/model_cache
     volumes:
       - thumb_data:/app/thumbs
       - image_data:/app/images
+      - model_cache:/app/model_cache
     depends_on:
       - qdrant
     restart: unless-stopped
@@ -44,3 +49,4 @@ volumes:
   qdrant_data:
   thumb_data:
   image_data:
+  model_cache:

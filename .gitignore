@@ -1,6 +1,9 @@
 node_modules/
 dist/
-.env
+.env*
+!.env.example
+!.env.sample
+!.env.template
 __pycache__/
 *.pyc
 .venv/
@@ -10,3 +13,7 @@ venv/
 thumbs/
 images/
 data/
+*.pem
+*.key
+id_rsa
+id_ed25519

@@ -3,6 +3,8 @@ export interface AssetResult {
   score: number;
   thumb_url: string;
   jump_url: string;
+  tags: string[];
+  tag_match: boolean;
   metadata: {
     channel_id: string;
     author_id: string;
@@ -20,6 +22,11 @@ export interface QueryFilters {
   author_id?: string;
 }
 
+export interface SearchResponse {
+  results: AssetResult[];
+  total_available: number;
+}
+
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
 const API_KEY = import.meta.env.VITE_API_KEY ?? "";
 
@@ -30,9 +37,9 @@ const headers: Record<string, string> = {
 
 export async function searchImages(
   queryText: string,
-  topK: number,
+  topK: number | null,
   filters: QueryFilters = {}
-): Promise<AssetResult[]> {
+): Promise<SearchResponse> {
   const res = await fetch(`${API_BASE}/query`, {
     method: "POST",
     headers,
@@ -40,8 +47,7 @@ export async function searchImages(
   });
 
   if (!res.ok) throw new Error(`Search failed: ${res.statusText}`);
-  const data = await res.json();
-  return data.results as AssetResult[];
+  return (await res.json()) as SearchResponse;
 }
 
 export function thumbUrl(assetId: string): string {

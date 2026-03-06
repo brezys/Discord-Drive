@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
@@ -5,12 +6,28 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.middleware import verify_api_key
 from app.routers import admin, assets, ingest, query, thumbnails
-from app.services import vector_db
+from app.services import embedder, vector_db
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("[startup] Ensuring Qdrant collection and indexes…")
     vector_db.ensure_collection()
+    vector_db.ensure_tags_index()
+
+    logger.info("[startup] Warming up embedding model…")
+    embedder.warmup()          # loads model + one dummy inference
+
+    logger.info("[startup] Warming up Qdrant connection…")
+    vector_db.warmup()         # touches collection to warm HTTP pool
+
+    logger.info("[startup] Ready")
     yield
 
 

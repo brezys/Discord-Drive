@@ -5,6 +5,7 @@ Both image and text are embedded into the same vector space.
 from __future__ import annotations
 
 import io
+import logging
 from functools import lru_cache
 from typing import Any
 
@@ -13,6 +14,8 @@ import torch
 from PIL import Image
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=1)
@@ -40,6 +43,19 @@ def embed_image(image_bytes: bytes) -> list[float]:
         features = model.encode_image(tensor)
         features = features / features.norm(dim=-1, keepdim=True)
     return features[0].cpu().tolist()
+
+
+def warmup() -> None:
+    """Eagerly load the model and run one dummy inference to warm JIT kernels.
+
+    Called once at startup so the first real user query is fast.
+    """
+    logger.info("[embedder] Loading model and running warmup inference…")
+    model, _, tokenizer = _load_model()
+    tokens = tokenizer(["warmup"]).to(_device())
+    with torch.no_grad():
+        _ = model.encode_text(tokens)
+    logger.info("[embedder] Warmup complete")
 
 
 def embed_text(text: str) -> list[float]:
